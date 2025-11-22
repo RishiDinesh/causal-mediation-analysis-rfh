@@ -5,7 +5,7 @@ import pandas as pd
 from pathlib import Path
 from src._types import PatchConfig
 from src.constants import TOP_RFHS_BY_LAYER_HEAD, MODELS_LITERAL
-from src.optimized_patcher import OptimizedActivationPatcher
+from src.optimized_patcher import OptimizedActivationPatcher, clear_memory
 
 MODEL_ALIAS: MODELS_LITERAL = "qwen-1p5B"
 
@@ -41,6 +41,7 @@ layer_to_top_rfhs = layer_to_top_rfhs[MODEL_ALIAS]
 savedir = f"data/output/activation_patching/{MODEL_ALIAS}"
 os.makedirs(Path(savedir), exist_ok=True)
 for i, row in df.iterrows():
+    print(f"\n==========ID {i}: {row['unique_id']}==========\n")
     row = row.to_dict()
     patch_config = PatchConfig(
         all_rfh = True,
@@ -50,9 +51,15 @@ for i, row in df.iterrows():
         layerwise_rfh_savepath = f"{savedir}/layer_<LAYER>_rfh_heads.jsonl",
         headwise_rfh_savepath = f"{savedir}/layer_<LAYER>_rfh_head_<HEAD>.jsonl"
     )
-    patcher.run(
-        response_withR = row["response_withR"],
-        response_withoutR = row["response_withoutR"],
-        heads_by_layer = layer_to_top_rfhs,
-        config = patch_config
-    )
+    try:
+        patcher.run(
+            response_withR = row["response_withR"],
+            response_withoutR = row["response_withoutR"],
+            heads_by_layer = layer_to_top_rfhs,
+            config = patch_config
+        )
+    except RuntimeError as e:
+        print(f"RuntimeError at index {i}, skipping. Error: {e}")
+        clear_memory()
+        continue
+    
