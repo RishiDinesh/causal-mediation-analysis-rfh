@@ -39,17 +39,22 @@ layer_to_top_rfhs = layer_to_top_rfhs[MODEL_ALIAS]
 
 # run patching
 savedir = f"data/output/activation_patching/{MODEL_ALIAS}"
+# this is for qwen-1.5B, we identify the topK RFH from the previous runs
+topk_rfh_list = [(23, 2), (16, 2), (19, 1), (14, 3), (20, 9), (19, 5)]
 os.makedirs(Path(savedir), exist_ok=True)
 for i, row in df.iterrows():
     print(f"\n==========ID {i}: {row['unique_id']}==========\n")
     row = row.to_dict()
     patch_config = PatchConfig(
-        all_rfh = True,
-        layerwise_rfh = True,
-        headwise_rfh = True,
+        all_rfh = False,
+        layerwise_rfh = False,
+        headwise_rfh = False,
+        topk_rfh = True,
+        topk_rfh_list = topk_rfh_list,
         all_rfh_savepath = f"{savedir}/all_rfh_heads.jsonl",
         layerwise_rfh_savepath = f"{savedir}/layer_<LAYER>_rfh_heads.jsonl",
-        headwise_rfh_savepath = f"{savedir}/layer_<LAYER>_rfh_head_<HEAD>.jsonl"
+        headwise_rfh_savepath = f"{savedir}/layer_<LAYER>_rfh_head_<HEAD>.jsonl",
+        topk_rfh_savepath = f"{savedir}/top_<K>_rfh.jsonl"
     )
     try:
         patcher.run(
