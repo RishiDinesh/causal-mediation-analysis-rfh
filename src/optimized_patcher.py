@@ -52,6 +52,25 @@ class OptimizedActivationPatcher:
         mean_log_prob = answer_log_probs.mean().item()
         del log_probs, answer_logits, answer_tokens, answer_log_probs, 
         return loss, joint_log_prob, mean_log_prob
+    
+    def _collect_patched_metrics(
+        self,
+        tokens,
+        patch_dict: dict[int, list[int]],
+        z_cache,
+        suffix_map: SuffixMap,
+        start_idx: int,
+        prefix: str
+    ) -> dict[str, float]:
+        logits = self.patch_head_z(tokens, patch_dict, z_cache, suffix_map)
+        loss, joint_log_prob, mean_log_prob = self.get_loss_and_log_probs(logits, tokens, start_idx)
+        del logits
+        clear_memory()
+        return {
+            f"{prefix}_loss": loss,
+            f"{prefix}_joint_logprob": joint_log_prob,
+            f"{prefix}_mean_logprob": mean_log_prob
+        }
 
     def run_with_cache_head_z(self, tokens, heads_by_layer):
         
@@ -146,28 +165,14 @@ class OptimizedActivationPatcher:
             clear_memory()
 
             if config.all_rfh:
+                print("Patching all RFHs")
                 all_rfh_metrics = metrics.copy()
-                # 4) patch withR -> withoutR
-                patched_withoutR_logits = self.patch_head_z(tok_withoutR, heads_by_layer, cache_withR, suffix_map)
-                res = self.get_loss_and_log_probs(patched_withoutR_logits, tok_withoutR, start_idx_withoutR)
-                all_rfh_metrics.update({
-                    "patched_withoutR_loss": res[0],
-                    "patched_withoutR_joint_logprob": res[1],
-                    "patched_withoutR_mean_logprob": res[2]
-                })
-                del patched_withoutR_logits
-                clear_memory()
-
-                # 5) patch withoutR -> withR
-                patched_withR_logits = self.patch_head_z(tok_withR, heads_by_layer, cache_withoutR, suffix_map)
-                res = self.get_loss_and_log_probs(patched_withR_logits, tok_withR, start_idx_withR)
-                all_rfh_metrics.update({
-                    "patched_withR_loss": res[0],
-                    "patched_withR_joint_logprob": res[1],
-                    "patched_withR_mean_logprob": res[2]
-                })
-                del patched_withR_logits
-                clear_memory()
+                all_rfh_metrics.update(self._collect_patched_metrics(
+                    tok_withoutR, heads_by_layer, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                ))
+                all_rfh_metrics.update(self._collect_patched_metrics(
+                    tok_withR, heads_by_layer, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                ))
                 save_json(
                     data = all_rfh_metrics,
                     fp = config.all_rfh_savepath
@@ -175,29 +180,15 @@ class OptimizedActivationPatcher:
 
             if config.layerwise_rfh:
                 for layer in heads_by_layer:
+                    print(f"Patching all RFHs in layer {layer}")
                     layerwise_rfh_metrics = metrics.copy()
                     patch_dict = {layer: heads_by_layer[layer]}
-                    # 4) patch withR -> withoutR
-                    patched_withoutR_logits = self.patch_head_z(tok_withoutR, patch_dict, cache_withR, suffix_map)
-                    res = self.get_loss_and_log_probs(patched_withoutR_logits, tok_withoutR, start_idx_withoutR)
-                    layerwise_rfh_metrics.update({
-                        "patched_withoutR_loss": res[0],
-                        "patched_withoutR_joint_logprob": res[1],
-                        "patched_withoutR_mean_logprob": res[2]
-                    })
-                    del patched_withoutR_logits
-                    clear_memory()
-
-                    # 5) patch withoutR -> withR
-                    patched_withR_logits = self.patch_head_z(tok_withR, patch_dict, cache_withoutR, suffix_map)
-                    res = self.get_loss_and_log_probs(patched_withR_logits, tok_withR, start_idx_withR)
-                    layerwise_rfh_metrics.update({
-                        "patched_withR_loss": res[0],
-                        "patched_withR_joint_logprob": res[1],
-                        "patched_withR_mean_logprob": res[2]
-                    })
-                    del patched_withR_logits
-                    clear_memory()
+                    layerwise_rfh_metrics.update(self._collect_patched_metrics(
+                        tok_withoutR, patch_dict, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                    ))
+                    layerwise_rfh_metrics.update(self._collect_patched_metrics(
+                        tok_withR, patch_dict, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                    ))
                     fp = config.layerwise_rfh_savepath.replace("<LAYER>", str(layer))
                     save_json(
                         data = layerwise_rfh_metrics,
@@ -206,30 +197,16 @@ class OptimizedActivationPatcher:
 
             if config.headwise_rfh:
                 for layer in heads_by_layer:
-                    for head in heads_by_layer[head]:
+                    for head in heads_by_layer[layer]:
+                        print(f"Patching RFH index {head} in layer {layer}")
                         headwise_rfh_metrics = metrics.copy()
-                        patch_dict = {layer: head}
-                        # 4) patch withR -> withoutR
-                        patched_withoutR_logits = self.patch_head_z(tok_withoutR, patch_dict, cache_withR, suffix_map)
-                        res = self.get_loss_and_log_probs(patched_withoutR_logits, tok_withoutR, start_idx_withoutR)
-                        headwise_rfh_metrics.update({
-                            "patched_withoutR_loss": res[0],
-                            "patched_withoutR_joint_logprob": res[1],
-                            "patched_withoutR_mean_logprob": res[2]
-                        })
-                        del patched_withoutR_logits
-                        clear_memory()
-
-                        # 5) patch withoutR -> withR
-                        patched_withR_logits = self.patch_head_z(tok_withR, patch_dict, cache_withoutR, suffix_map)
-                        res = self.get_loss_and_log_probs(patched_withR_logits, tok_withR, start_idx_withR)
-                        headwise_rfh_metrics.update({
-                            "patched_withR_loss": res[0],
-                            "patched_withR_joint_logprob": res[1],
-                            "patched_withR_mean_logprob": res[2]
-                        })
-                        del patched_withR_logits
-                        clear_memory()
+                        patch_dict = {layer: [head]}
+                        headwise_rfh_metrics.update(self._collect_patched_metrics(
+                            tok_withoutR, patch_dict, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                        ))
+                        headwise_rfh_metrics.update(self._collect_patched_metrics(
+                            tok_withR, patch_dict, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                        ))
                         fp = config.headwise_rfh_savepath.replace("<LAYER>", str(layer)).replace("<HEAD>", str(head))
                         save_json(
                             data = headwise_rfh_metrics,
@@ -240,34 +217,22 @@ class OptimizedActivationPatcher:
                 for k in range(1, 6):
                     topk_rfh_metrics = metrics.copy()
                     top_k = config.topk_rfh_list[:k]
+                    print(f"Patching top {k} RFHs: {top_k}")
                     patch_dict: dict[int, list[int]] = {}
                     for l, h in top_k:
                         if l not in patch_dict:
                             patch_dict[l] = []
                         patch_dict[l].append(h)
-                    # 4) patch withR -> withoutR
-                    patched_withoutR_logits = self.patch_head_z(tok_withoutR, patch_dict, cache_withR, suffix_map)
-                    res = self.get_loss_and_log_probs(patched_withoutR_logits, tok_withoutR, start_idx_withoutR)
-                    topk_rfh_metrics.update({
-                        "patched_withoutR_loss": res[0],
-                        "patched_withoutR_joint_logprob": res[1],
-                        "patched_withoutR_mean_logprob": res[2]
-                    })
-                    del patched_withoutR_logits
-                    clear_memory()
-
-                    # 5) patch withoutR -> withR
-                    patched_withR_logits = self.patch_head_z(tok_withR, patch_dict, cache_withoutR, suffix_map)
-                    res = self.get_loss_and_log_probs(patched_withR_logits, tok_withR, start_idx_withR)
-                    topk_rfh_metrics.update({
-                        "patched_withR_loss": res[0],
-                        "patched_withR_joint_logprob": res[1],
-                        "patched_withR_mean_logprob": res[2]
-                    })
-                    del patched_withR_logits
-                    clear_memory()
+                    topk_rfh_metrics.update(self._collect_patched_metrics(
+                        tok_withoutR, patch_dict, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                    ))
+                    topk_rfh_metrics.update(self._collect_patched_metrics(
+                        tok_withR, patch_dict, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                    ))
                     fp = config.topk_rfh_savepath.replace("<K>", str(k))
                     save_json(
                         data = topk_rfh_metrics,
                         fp = fp
                     )
+            del cache_withoutR
+            del cache_withR
