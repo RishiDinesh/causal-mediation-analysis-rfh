@@ -23,6 +23,14 @@ if torch.mps.is_available():
     device = torch.device("mps")
 print(f"Using device: {device}")
 
+# print gpu device details
+if device.type == "cuda":
+    print(f"GPU Name: {torch.cuda.get_device_name(0)}")
+    print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    print(f"CUDA Version: {torch.version.cuda}")
+elif device.type == "mps":
+    print("Using Apple Metal Performance Shaders (MPS)")
+
 # load data
 with open("data/traces.jsonl", "r") as f:
     traces = [json.loads(line) for line in f.readlines()]
