@@ -60,7 +60,7 @@ print(f"Saving outputs to {savedir}")
 # we identify the topK RFH from the previous runs
 topk_rfh_mapping = {
     "qwen-1p5B": [(23, 2), (16, 2), (19, 1), (14, 3), (20, 9), (19, 5)],
-    "qwen-7B": [] # TBD
+    "qwen-7B": [(22, 7), (19, 15), (16, 0), (17, 18), (14, 0), (16, 14)]
 }
 topk_rfh_list = topk_rfh_mapping[model_alias]
 
