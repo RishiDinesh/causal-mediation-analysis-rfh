@@ -1,9 +1,11 @@
 import gc
+import json
 import torch
 from torch.nn.functional import cross_entropy
 from transformer_lens import HookedTransformer
 from src.suffix_map import get_suffix_map, SuffixMap
 from src.constants import MODELS_LITERAL
+from src._types import PatchConfig
 
 torch.set_grad_enabled(False)
 
@@ -13,6 +15,10 @@ def clear_memory():
         torch.mps.empty_cache()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
+def save_json(data, fp):
+    with open(fp, "a") as f:
+        f.write(json.dumps(data) + "\n")
 
 class ActivationPatcher:
 
@@ -46,6 +52,25 @@ class ActivationPatcher:
         mean_log_prob = answer_log_probs.mean().item()
         del log_probs, answer_logits, answer_tokens, answer_log_probs, 
         return loss, joint_log_prob, mean_log_prob
+    
+    def _collect_patched_metrics(
+        self,
+        tokens,
+        patch_dict: dict[int, list[int]],
+        z_cache,
+        suffix_map: SuffixMap,
+        start_idx: int,
+        prefix: str
+    ) -> dict[str, float]:
+        logits = self.patch_head_z(tokens, patch_dict, z_cache, suffix_map)
+        loss, joint_log_prob, mean_log_prob = self.get_loss_and_log_probs(logits, tokens, start_idx)
+        del logits
+        clear_memory()
+        return {
+            f"{prefix}_loss": loss,
+            f"{prefix}_joint_logprob": joint_log_prob,
+            f"{prefix}_mean_logprob": mean_log_prob
+        }
 
     def run_with_cache_head_z(self, tokens, heads_by_layer):
         
@@ -102,8 +127,9 @@ class ActivationPatcher:
         response_withR: str,
         response_withoutR: str,
         heads_by_layer: dict[int, list[int]],
+        config: PatchConfig
     ):
-        metrics = {}
+        metrics, all_rfh_metrics, layerwise_rfh_metrics, headwise_rfh_metrics = {}, {}, {}, {}
         with torch.inference_mode():
             # 1) tokenize
             tok_withR = self.model.to_tokens(response_withR, prepend_bos=False).to(device=self.device)
@@ -138,38 +164,117 @@ class ActivationPatcher:
             del withoutR_logits
             clear_memory()
 
-            # 4) patch withR -> withoutR
-            patched_withoutR_logits = self.patch_head_z(
-                tok_withoutR,
-                heads_by_layer,
-                cache_withR,
-                suffix_map
-            )
-            res = self.get_loss_and_log_probs(patched_withoutR_logits, tok_withoutR, start_idx_withoutR)
-            metrics.update({
-                "patched_withoutR_loss": res[0],
-                "patched_withoutR_joint_logprob": res[1],
-                "patched_withoutR_mean_logprob": res[2]
-            })
-            del patched_withoutR_logits
-            del cache_withR
-            clear_memory()
+            if config.all_rfh:
+                print("Patching all given heads", flush=True)
+                all_rfh_metrics = metrics.copy()
+                all_rfh_metrics.update(self._collect_patched_metrics(
+                    tok_withoutR, heads_by_layer, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                ))
+                all_rfh_metrics.update(self._collect_patched_metrics(
+                    tok_withR, heads_by_layer, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                ))
+                save_json(
+                    data = all_rfh_metrics,
+                    fp = config.all_rfh_savepath
+                )
 
-            # 5) patch withoutR -> withR
-            patched_withR_logits = self.patch_head_z(
-                tok_withR,
-                heads_by_layer,
-                cache_withoutR,
-                suffix_map
-            )
-            res = self.get_loss_and_log_probs(patched_withR_logits, tok_withR, start_idx_withR)
-            metrics.update({
-                "patched_withR_loss": res[0],
-                "patched_withR_joint_logprob": res[1],
-                "patched_withR_mean_logprob": res[2]
-            })
-            del patched_withR_logits
+            if config.layerwise_rfh:
+                for layer in heads_by_layer:
+                    print(f"Patching all heads in layer {layer}", flush=True)
+                    layerwise_rfh_metrics = metrics.copy()
+                    patch_dict = {layer: heads_by_layer[layer]}
+                    layerwise_rfh_metrics.update(self._collect_patched_metrics(
+                        tok_withoutR, patch_dict, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                    ))
+                    layerwise_rfh_metrics.update(self._collect_patched_metrics(
+                        tok_withR, patch_dict, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                    ))
+                    fp = config.layerwise_rfh_savepath.replace("<LAYER>", str(layer))
+                    save_json(
+                        data = layerwise_rfh_metrics,
+                        fp = fp
+                    )
+
+            if config.headwise_rfh:
+                for layer in heads_by_layer:
+                    for head in heads_by_layer[layer]:
+                        print(f"Patching head index {head} in layer {layer}", flush=True)
+                        headwise_rfh_metrics = metrics.copy()
+                        patch_dict = {layer: [head]}
+                        headwise_rfh_metrics.update(self._collect_patched_metrics(
+                            tok_withoutR, patch_dict, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                        ))
+                        headwise_rfh_metrics.update(self._collect_patched_metrics(
+                            tok_withR, patch_dict, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                        ))
+                        fp = config.headwise_rfh_savepath.replace("<LAYER>", str(layer)).replace("<HEAD>", str(head))
+                        save_json(
+                            data = headwise_rfh_metrics,
+                            fp = fp
+                        )
+            
+            if config.topk_rfh:
+                for k in range(1, 6):
+                    topk_rfh_metrics = metrics.copy()
+                    top_k = config.topk_rfh_list[:k]
+                    print(f"Patching top {k} heads: {top_k}", flush=True)
+                    patch_dict: dict[int, list[int]] = {}
+                    for l, h in top_k:
+                        if l not in patch_dict:
+                            patch_dict[l] = []
+                        patch_dict[l].append(h)
+                    topk_rfh_metrics.update(self._collect_patched_metrics(
+                        tok_withoutR, patch_dict, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                    ))
+                    topk_rfh_metrics.update(self._collect_patched_metrics(
+                        tok_withR, patch_dict, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                    ))
+                    fp = config.topk_rfh_savepath.replace("<K>", str(k))
+                    save_json(
+                        data = topk_rfh_metrics,
+                        fp = fp
+                    )
+            
+            if config.induction_heads:
+                print("Patching induction heads", flush=True)
+                induction_head_metrics = metrics.copy()
+                induction_head_metrics.update(self._collect_patched_metrics(
+                    tok_withoutR, heads_by_layer, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                ))
+                induction_head_metrics.update(self._collect_patched_metrics(
+                    tok_withR, heads_by_layer, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                ))
+                save_json(
+                    data = induction_head_metrics,
+                    fp = config.induction_heads_savepath
+                )
+            
+            if config.retrieval_heads:
+                print("Patching retrieval heads", flush=True)
+                retrieval_head_metrics = metrics.copy()
+                retrieval_head_metrics.update(self._collect_patched_metrics(
+                    tok_withoutR, heads_by_layer, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                ))
+                retrieval_head_metrics.update(self._collect_patched_metrics(
+                    tok_withR, heads_by_layer, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                ))
+                save_json(
+                    data = retrieval_head_metrics,
+                    fp = config.retrieval_heads_savepath
+                )
+
+            if config.induction_and_retrieval_heads:
+                print("Patching induction and retrieval heads", flush=True)
+                induction_and_retrieval_head_metrics = metrics.copy()
+                induction_and_retrieval_head_metrics.update(self._collect_patched_metrics(
+                    tok_withoutR, heads_by_layer, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                ))
+                induction_and_retrieval_head_metrics.update(self._collect_patched_metrics(
+                    tok_withR, heads_by_layer, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                ))
+                save_json(
+                    data = induction_and_retrieval_head_metrics,
+                    fp = config.induction_and_retrieval_heads_savepath
+                )   
             del cache_withoutR
-            clear_memory()
-
-        return metrics
+            del cache_withR

@@ -12,4 +12,4 @@
 
 cd /w/nobackup/385/scratch-space/expires-2025-Nov-30/rishi/causal-mediation-analysis-rfh
 source ./.venv/bin/activate
-python run_optimized_patcher.py --model qwen-7B --experiments topk_rfh
+python main.py --model qwen-7B --experiments topk_rfh
