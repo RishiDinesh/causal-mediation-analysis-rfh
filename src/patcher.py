@@ -106,14 +106,11 @@ class ActivationPatcher:
                 return z
             for h in heads_by_layer[layer]:
                 cache = z_cache[(layer, h)].to(device=z.device, dtype=z.dtype) # [seq_long, d_head]
-                if self.ablate:
-                    if z.size(1) < cache.size(0):
-                        z[0, idxs_short, h, :] = 0
-                    else:
-                        z[0, idxs_long, h, :] = 0
+                if z.size(1) < cache.size(0):
+                    z[0, idxs_short, h, :] = cache.index_select(0, idxs_long)
                 else:
-                    if z.size(1) < cache.size(0):
-                        z[0, idxs_short, h, :] = cache.index_select(0, idxs_long)
+                    if self.ablate:
+                        z[0, idxs_long, h, :] = 0 # patch the COT run, zero out head activations
                     else:
                         z[0, idxs_long, h, :] = cache.index_select(0, idxs_short)
             return z
