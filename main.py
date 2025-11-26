@@ -22,7 +22,7 @@ EXPERIMENT_CHOICES = [
     "topk_rfh",
     "induction_heads",
     "retrieval_heads",
-    "induction_and_retrieval_heads"
+    "induction_and_retrieval_heads",
     "induction_retrieval_and_rfh_heads"
 ]
 
@@ -31,6 +31,8 @@ parser.add_argument("--model", type=str, choices=MODELS, help="Model", required=
 parser.add_argument("--experiments", nargs="+", choices=EXPERIMENT_CHOICES, required=True, help="Experiments to run")
 parser.add_argument("--n", type=int, default=1000, help="Number of samples to process")
 args = parser.parse_args()
+
+'induction_retrieval_and_rfh_heads'
 
 exclusive_group = ["induction_heads", "retrieval_heads", "induction_and_retrieval_heads", "induction_retrieval_and_rfh_heads"]
 chosen_exclusive = [e for e in args.experiments if e in exclusive_group]
