@@ -30,7 +30,6 @@ parser = argparse.ArgumentParser(description="Run activation patching")
 parser.add_argument("--model", type=str, choices=MODELS, help="Model", required=True)
 parser.add_argument("--experiments", nargs="+", choices=EXPERIMENT_CHOICES, required=True, help="Experiments to run")
 parser.add_argument("--n", type=int, default=1000, help="Number of samples to process")
-parser.add_argument("--ablate", action="store_true", help="Ablate instead of replacing")
 args = parser.parse_args()
 
 exclusive_group = ["induction_heads", "retrieval_heads", "induction_and_retrieval_heads", "induction_retrieval_and_rfh_heads"]
@@ -113,7 +112,6 @@ patch_config = PatchConfig(
     induction_and_retrieval_heads = "induction_and_retrieval_heads" in args.experiments,
     induction_and_retrieval_and_rfh_heads="induction_retrieval_and_rfh_heads" in args.experiments,
     topk_rfh_list = topk_rfh_list,
-    ablate=args.ablate,
     all_rfh_savepath = f"{savedir}/all_rfh_heads.jsonl",
     layerwise_rfh_savepath = f"{savedir}/layer_<LAYER>_rfh_heads.jsonl",
     headwise_rfh_savepath = f"{savedir}/layer_<LAYER>_rfh_head_<HEAD>.jsonl",
@@ -123,7 +121,6 @@ patch_config = PatchConfig(
     induction_and_retrieval_heads_savepath = f"{savedir}/all_induction_and_retrieval_heads.jsonl",
     induction_and_retrieval_and_rfh_heads_savepath=f"{savedir}/all_induction_retrieval_and_rfh_heads.jsonl",
 )
-patch_config.add_ablation_to_path()
 print(f"Running with patch config: {patch_config}", flush=True)
 
 # run experiments for each row
