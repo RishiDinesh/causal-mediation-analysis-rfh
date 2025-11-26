@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=patch-7B
 #SBATCH --partition=gpunodes
-#SBATCH --gres=gpu:rtx_a6000:1
+#SBATCH --gres=gpu:rtx_a4500:1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=30G
 #SBATCH --time=1-00:00:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --mail-user=rishidinesh@cs.toronto.edu
