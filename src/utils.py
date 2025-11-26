@@ -12,9 +12,10 @@ def get_layer_to_heads(top_heads):
 def merge_head_dicts(dict1, dict2):
     merged = {}
     for key in set(dict1) | set(dict2):
-        merged[key] = []
+        merged_set = set()
         if key in dict1:
-            merged[key].extend(dict1[key])
+            merged_set.update(tuple(p) for p in dict1[key])
         if key in dict2:
-            merged[key].extend(dict2[key])
+            merged_set.update(tuple(p) for p in dict2[key])
+        merged[key] = [list(t) for t in merged_set]
     return merged

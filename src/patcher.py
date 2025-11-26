@@ -265,16 +265,30 @@ class ActivationPatcher:
 
             if config.induction_and_retrieval_heads:
                 print("Patching induction and retrieval heads", flush=True)
-                induction_and_retrieval_head_metrics = metrics.copy()
-                induction_and_retrieval_head_metrics.update(self._collect_patched_metrics(
+                IR_metrics = metrics.copy()
+                IR_metrics.update(self._collect_patched_metrics(
                     tok_withoutR, heads_by_layer, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
                 ))
-                induction_and_retrieval_head_metrics.update(self._collect_patched_metrics(
+                IR_metrics.update(self._collect_patched_metrics(
                     tok_withR, heads_by_layer, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
                 ))
                 save_json(
-                    data = induction_and_retrieval_head_metrics,
+                    data = IR_metrics,
                     fp = config.induction_and_retrieval_heads_savepath
+                ) 
+
+            if config.induction_and_retrieval_and_rfh_heads:
+                print("Patching induction, retrieval and RFH heads", flush=True)
+                IRR_metrics = metrics.copy()
+                IRR_metrics.update(self._collect_patched_metrics(
+                    tok_withoutR, heads_by_layer, cache_withR, suffix_map, start_idx_withoutR, "patched_withoutR"
+                ))
+                IRR_metrics.update(self._collect_patched_metrics(
+                    tok_withR, heads_by_layer, cache_withoutR, suffix_map, start_idx_withR, "patched_withR"
+                ))
+                save_json(
+                    data = IRR_metrics,
+                    fp = config.induction_and_retrieval_and_rfh_heads_savepath
                 )   
             del cache_withoutR
             del cache_withR

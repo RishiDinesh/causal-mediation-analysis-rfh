@@ -23,6 +23,7 @@ EXPERIMENT_CHOICES = [
     "induction_heads",
     "retrieval_heads",
     "induction_and_retrieval_heads"
+    "induction_retrieval_and_rfh_heads"
 ]
 
 parser = argparse.ArgumentParser(description="Run activation patching")
@@ -31,7 +32,7 @@ parser.add_argument("--experiments", nargs="+", choices=EXPERIMENT_CHOICES, requ
 parser.add_argument("--n", type=int, default=1000, help="Number of samples to process")
 args = parser.parse_args()
 
-exclusive_group = ["induction_heads", "retrieval_heads", "induction_and_retrieval_heads"]
+exclusive_group = ["induction_heads", "retrieval_heads", "induction_and_retrieval_heads", "induction_retrieval_and_rfh_heads"]
 chosen_exclusive = [e for e in args.experiments if e in exclusive_group]
 
 if len(chosen_exclusive) > 1:
@@ -74,6 +75,9 @@ elif "retrieval_heads" in args.experiments:
     top_heads = TOP_RETRIEVAL_HEADS
 elif "induction_and_retrieval_heads" in args.experiments:
     top_heads = merge_head_dicts(TOP_INDUCTION_HEADS, TOP_RETRIEVAL_HEADS)
+elif "induction_retrieval_and_rfh_heads" in args.experiments:
+    temp = merge_head_dicts(TOP_INDUCTION_HEADS, TOP_RETRIEVAL_HEADS)
+    top_heads = merge_head_dicts(temp, TOP_RFHS_BY_LAYER_HEAD)
 elif "rfh_heads" in args.experiments:
     top_heads = TOP_RFHS_BY_LAYER_HEAD
 
@@ -106,6 +110,7 @@ patch_config = PatchConfig(
     induction_heads = "induction_heads" in args.experiments,
     retrieval_heads = "retrieval_heads" in args.experiments,
     induction_and_retrieval_heads = "induction_and_retrieval_heads" in args.experiments,
+    induction_and_retrieval_and_rfh_heads="induction_retrieval_and_rfh_heads" in args.experiments,
     topk_rfh_list = topk_rfh_list,
     all_rfh_savepath = f"{savedir}/all_rfh_heads.jsonl",
     layerwise_rfh_savepath = f"{savedir}/layer_<LAYER>_rfh_heads.jsonl",
@@ -114,6 +119,7 @@ patch_config = PatchConfig(
     induction_heads_savepath = f"{savedir}/all_induction_heads.jsonl",
     retrieval_heads_savepath = f"{savedir}/all_retrieval_heads.jsonl",
     induction_and_retrieval_heads_savepath = f"{savedir}/all_induction_and_retrieval_heads.jsonl",
+    induction_and_retrieval_and_rfh_heads_savepath=f"{savedir}/all_induction_retrieval_and_rfh_heads.jsonl",
 )
 print(f"Running with patch config: {patch_config}", flush=True)
 
@@ -134,3 +140,5 @@ for i, row in df.iterrows():
         print(f"RuntimeError at index {i}, skipping. Error: {e}", flush=True)
         clear_memory()
         continue
+
+print("DONE!!", flush=True)
