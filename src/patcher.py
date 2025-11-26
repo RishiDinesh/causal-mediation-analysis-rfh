@@ -34,6 +34,7 @@ class ActivationPatcher:
             dtype=torch.bfloat16,
             device = device
         )
+        self.ablate = None
 
     def _find_answer_start_idx(self, text: str) -> int:
         # Find first token after </think>, then skip "The final answer is:" preamble
@@ -105,10 +106,16 @@ class ActivationPatcher:
                 return z
             for h in heads_by_layer[layer]:
                 cache = z_cache[(layer, h)].to(device=z.device, dtype=z.dtype) # [seq_long, d_head]
-                if z.size(1) < cache.size(0):
-                    z[0, idxs_short, h, :] = cache.index_select(0, idxs_long)
+                if self.ablate:
+                    if z.size(1) < cache.size(0):
+                        z[0, idxs_short, h, :] = 0
+                    else:
+                        z[0, idxs_long, h, :] = 0
                 else:
-                    z[0, idxs_long, h, :] = cache.index_select(0, idxs_short)
+                    if z.size(1) < cache.size(0):
+                        z[0, idxs_short, h, :] = cache.index_select(0, idxs_long)
+                    else:
+                        z[0, idxs_long, h, :] = cache.index_select(0, idxs_short)
             return z
         
         name_filter = lambda n: n.endswith("attn.hook_z") or n.endswith(".hook_z")
@@ -130,6 +137,8 @@ class ActivationPatcher:
         config: PatchConfig
     ):
         metrics, all_rfh_metrics, layerwise_rfh_metrics, headwise_rfh_metrics = {}, {}, {}, {}
+        self.ablate = config.ablate
+        print(f"Ablation: {self.ablate}", flush=True)
         with torch.inference_mode():
             # 1) tokenize
             tok_withR = self.model.to_tokens(response_withR, prepend_bos=False).to(device=self.device)

@@ -10,6 +10,7 @@ class PatchConfig:
     retrieval_heads: bool
     induction_and_retrieval_heads: bool
     induction_and_retrieval_and_rfh_heads: bool
+    ablate: bool = False
     topk_rfh_list: list[tuple[int, int]]|None = None
     all_rfh_savepath: str|None = None
     layerwise_rfh_savepath: str|None = None
@@ -40,5 +41,16 @@ class PatchConfig:
             missing.append("induction_and_retrieval_and_rfh_savepath")
         if missing:
             raise ValueError(f"Savepath(s) required for enabled RFH: {', '.join(missing)}")
+    
+    def add_ablation_to_path(self):
+        if self.ablate:
+            self.all_rfh_savepath = self.all_rfh_savepath.replace(".jsonl", "_with_ablation.jsonl")
+            self.layerwise_rfh_savepath = self.layerwise_rfh_savepath.replace(".jsonl", "_with_ablation.jsonl")
+            self.headwise_rfh_savepath = self.headwise_rfh_savepath.replace(".jsonl", "_with_ablation.jsonl")
+            self.topk_rfh_savepath = self.topk_rfh_savepath.replace(".jsonl", "_with_ablation.jsonl")
+            self.induction_heads_savepath = self.induction_heads_savepath.replace(".jsonl", "_with_ablation.jsonl")
+            self.retrieval_heads_savepath = self.retrieval_heads_savepath.replace(".jsonl", "_with_ablation.jsonl")
+            self.induction_and_retrieval_heads_savepath = self.induction_and_retrieval_heads_savepath.replace(".jsonl", "_with_ablation.jsonl")
+            self.induction_and_retrieval_and_rfh_heads_savepath = self.induction_and_retrieval_and_rfh_heads_savepath.replace(".jsonl", "_with_ablation.jsonl")
 
 
