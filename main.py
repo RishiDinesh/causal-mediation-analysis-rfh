@@ -30,6 +30,18 @@ parser = argparse.ArgumentParser(description="Run activation patching")
 parser.add_argument("--model", type=str, choices=MODELS, help="Model", required=True)
 parser.add_argument("--experiments", nargs="+", choices=EXPERIMENT_CHOICES, required=True, help="Experiments to run")
 parser.add_argument("--n", type=int, default=1000, help="Number of samples to process")
+parser.add_argument(
+    "--traces_path",
+    type=Path,
+    default=Path("data/traces.jsonl"),
+    help="Path to the traces JSONL file (default: data/traces.jsonl)",
+)
+parser.add_argument(
+    "--output_suffix",
+    type=str,
+    default="",
+    help="Optional suffix appended to the output directory name",
+)
 args = parser.parse_args()
 
 exclusive_group = ["induction_heads", "retrieval_heads", "induction_and_retrieval_heads", "induction_retrieval_and_rfh_heads"]
@@ -62,7 +74,7 @@ elif device.type == "mps":
     print("Using Apple Metal Performance Shaders (MPS)", flush=True)
 
 # load data
-with open("data/traces.jsonl", "r") as f:
+with open(args.traces_path, "r") as f:
     traces = [json.loads(line) for line in f.readlines()]
 df = pd.DataFrame(traces)
 
@@ -90,7 +102,10 @@ layer_to_heads = layer_to_heads[model_alias]
 print(f"Layer-to-head mapping for {model_alias}: {layer_to_heads}", flush=True)
 
 # run patching
-savedir = f"data/output/activation_patching/{model_alias}"
+output_dir = "data/output"
+if args.output_suffix:
+    output_dir = f"{output_dir}_{args.output_suffix}"
+savedir = f"{output_dir}/activation_patching/{model_alias}"
 os.makedirs(Path(savedir), exist_ok=True)
 print(f"Saving outputs to {savedir}", flush=True)
 
