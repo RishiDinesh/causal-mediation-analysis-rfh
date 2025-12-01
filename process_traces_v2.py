@@ -114,12 +114,12 @@ def process_traces(
                 continue
 
             extracted_idx = option_letter_to_index(extracted_answer)
-            print(
-                "Extracted answer:",
-                extracted_idx,
-                ", gold answer:",
-                gold_answer,
-            )
+            # print(
+            #     "Extracted answer:",
+            #     extracted_idx,
+            #     ", gold answer:",
+            #     gold_answer,
+            # )
             if extracted_answer.lower() not in {"a", "b", "c", "d"}:
                 continue
 
@@ -188,19 +188,33 @@ def parse_args() -> argparse.Namespace:
         default=Path("data/traces.jsonl"),
         help="Path to write the final JSONL results.",
     )
+    parser.add_argument(
+        "--subject",
+        choices=("math", "physics"),
+        default="math",
+        help="Which subject split to process (math=MMLU_*, physics=MMLU_physics_*).",
+    )
     return parser.parse_args()
 
 
-def main(trace_dir: Path, output_path: Path) -> None:
+def main(trace_dir: Path, output_path: Path, subject: str) -> None:
     """Entry point for converting trace files into the consolidated dataset."""
     if not trace_dir.is_dir():
         raise ValueError(f"Trace directory does not exist: {trace_dir}")
+
+    prefix_lookup = {
+        "math": "MMLU_DeepSeek",
+        "physics": "MMLU_physics_DeepSeek",
+    }
+    file_prefix = prefix_lookup[subject]
 
     dataset_lookup = load_mmlu_datasets()
     all_results: List[dict] = []
 
     for filename in os.listdir(trace_dir):
         if not filename.endswith(".jsonl"):
+            continue
+        if not filename.startswith(file_prefix):
             continue
         file_path = trace_dir / filename
         traces = read_trace_file(file_path)
@@ -230,4 +244,4 @@ def main(trace_dir: Path, output_path: Path) -> None:
 
 if __name__ == "__main__":
     args = parse_args()
-    main(args.trace_dir, args.output)
+    main(args.trace_dir, args.output, args.subject)
