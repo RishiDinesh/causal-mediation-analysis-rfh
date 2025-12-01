@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output_suffix",
         type=str,
-        default="",
+        default="math",
         help="Optional suffix appended to the output directory name",
     )
     args = parser.parse_args()
