@@ -216,6 +216,8 @@ def main(trace_dir: Path, output_path: Path, subject: str) -> None:
             continue
         if not filename.startswith(file_prefix):
             continue
+        if "_withoutR_" in filename:
+            continue
         file_path = trace_dir / filename
         traces = read_trace_file(file_path)
         file_results = process_traces(traces, filename, dataset_lookup)
