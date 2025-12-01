@@ -157,9 +157,10 @@ class ActivationPatcher:
         response_withR: str,
         response_withoutR: str,
         heads_by_layer: dict[int, list[int]],
-        config: PatchConfig
+        config: PatchConfig,
+        base_metrics: dict | None = None
     ):
-        metrics = {}
+        metrics = base_metrics if base_metrics is not None else {}
         with torch.inference_mode():
             # 1) tokenize
             tok_withR = self.model.to_tokens(response_withR, prepend_bos=False).to(device=self.device)
