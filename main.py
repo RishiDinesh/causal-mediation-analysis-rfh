@@ -88,6 +88,7 @@ def main() -> None:
     with open(args.traces_path, "r") as f:
         traces = [json.loads(line) for line in f.readlines()]
     df = pd.DataFrame(traces)
+    print(f"df.columns: {df.columns}", flush=True)
 
     # instantiate patcher
     patcher = ActivationPatcher(model_alias, device)
@@ -160,7 +161,11 @@ def main() -> None:
                 response_withR = row["response_withR"],
                 response_withoutR = row["response_withoutR"],
                 heads_by_layer = layer_to_heads,
-                config = patch_config
+                config = patch_config,
+                base_metrics = {
+                    "unique_id": row["unique_id"],
+                    "model_name": row["model_name"],
+                }
             )
         except RuntimeError as e:
             print(f"RuntimeError at index {i}, skipping. Error: {e}", flush=True)

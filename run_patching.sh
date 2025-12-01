@@ -14,7 +14,12 @@ run_main() {
   fi
 }
 
-MODELS=("qwen-7B" "qwen-1p5B")
+if [[ $# -gt 0 ]]; then
+  MODELS=("$@")
+else
+  MODELS=("qwen-7B" "qwen-1p5B")
+fi
+
 declare -A SUBJECT_SETTINGS=(
   ["math"]="/w/20252/wjcai/causal_inf/causal-mediation-analysis-rfh/data_v3/traces_math.jsonl college_math"
   ["physics"]="/w/20252/wjcai/causal_inf/causal-mediation-analysis-rfh/data_v3/traces_physics.jsonl college_physics"
