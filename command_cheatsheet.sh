@@ -19,3 +19,9 @@ srun --partition gpunodes \
      --mem=30G \
      --gres=gpu:rtx_4090:1 \
      --pty bash --login
+
+srun --partition gpunodes \
+     --cpus-per-task=8 \
+     --mem=64G \
+     --gres=gpu:rtx_a6000:1 \
+     --pty bash --login
